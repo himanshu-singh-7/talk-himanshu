@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HF AI Chat Interface</title>
+    
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Marked.js for Markdown parsing (Text formatting) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Highlight.js for Code Coloring -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Markdown Styles within Chat */
+        .prose pre {
+            margin: 0;
+            padding: 0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* The code block container */
+        .code-block-wrapper {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background-color: #0d1117; /* GitHub Dark bg */
+            border: 1px solid #30363d;
+        }
+
+        /* The header of the code block (Language name + Copy button) */
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background-color: #161b22;
+            border-bottom: 1px solid #30363d;
+            font-size: 0.8rem;
+            color: #c9d1d9;
+        }
+
+        /* The actual code area */
+        .code-block-wrapper pre {
+            padding: 1rem;
+            overflow-x: auto;
+            margin: 0;
+        }
+
+        /* Links in chat */
+        .prose a {
+            color: #3b82f6;
+            text-decoration: underline;
+        }
+        .prose a:hover {
+            color: #60a5fa;
+        }
+        
+        /* Chat Bubble Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-bubble {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col font-sans">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
+                <i class="fa-solid fa-robot text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-xl tracking-tight">AI Chat</h1>
+                <p class="text-xs text-gray-400">Powered by Hugging Face</p>
+            </div>
+        </div>
+        <button id="settings-btn" class="text-gray-400 hover:text-white transition p-2">
+            <i class="fa-solid fa-gear text-xl"></i>
+        </button>
+    </header>
+
+    <!-- Settings Modal (Hidden by default) -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-800 rounded-xl w-full max-w-md border border-gray-700 shadow-2xl overflow-hidden transform transition-all scale-100">
+            <div class="p-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-yellow-500"></i> Configuration
+                </h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Hugging Face Access Token</label>
+                    <input type="password" id="api-key-input" placeholder="hf_xxxxxxxxxxxxxxxxxxxx" 
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    <p class="text-xs text-gray-500 mt-2">
+                        Your token is stored locally in your browser.
+                        <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-indigo-400 hover:underline">Get Token</a>
+                    </p>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Select Model</label>
+                    
+                    <!-- Quick Select Dropdown -->
+                    <select id="model-select" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white mb-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="custom">Custom (Enter below)</option>
+                        <option value="aeon37/Llama-3.3-8B-Instruct-heretic" selected>Llama 3.3 8B Heretic (Default)</option>
+                        <option value="meta-llama/Meta-Llama-3.1-8B-Instruct">Llama 3.1 8B Instruct</option>
+                        <option value="mistralai/Mistral-7B-Instruct-v0.3">Mistral 7B Instruct v0.3</option>
+                        <option value="microsoft/Phi-3-mini-4k-instruct">Microsoft Phi-3 Mini</option>
+                        <option value="Qwen/Qwen2.5-7B-Instruct">Qwen 2.5 7B Instruct</option>
+                    </select>
+
+                    <input type="text" id="model-id-input" value="aeon37/Llama-3.3-8B-Instruct-heretic" 
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm placeholder-gray-500">
+                    <p class="text-xs text-gray-500 mt-2">Use standard HF IDs (e.g. meta-llama/...).</p>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button id="close-settings" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition font-medium text-sm">
+                        Save & Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Area -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth">
+        
+        <!-- Welcome Message -->
+        <div class="flex gap-4 max-w-3xl mx-auto message-bubble">
+            <div class="w-8 h-8 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center mt-1">
+                <i class="fa-solid fa-robot text-xs"></i>
+            </div>
+            <div class="flex-1">
+                <div class="bg-gray-800 border border-gray-700 rounded-2xl rounded-tl-none p-4 shadow-sm">
+                    <div class="prose prose-invert max-w-none text-sm md:text-base">
+                        <p>Hello! I am configured to use <strong>Llama 3.3 Heretic</strong> by default.</p>
+                        <p>Please click the <strong>Gear icon</strong> <i class="fa-solid fa-gear"></i> in the top right to set your Hugging Face API Token before we start.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="hidden max-w-3xl mx-auto px-4 pb-2">
+        <div class="flex items-center gap-3 text-gray-400 text-sm">
+            <div class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce"></div>
+            <div class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+            <div class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+            <span>AI is thinking...</span>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <footer class="p-4 bg-gray-800 border-t border-gray-700">
+        <div class="max-w-3xl mx-auto relative">
+            <textarea id="user-input" rows="1" 
+                class="w-full bg-gray-900 text-white rounded-xl pl-4 pr-12 py-3 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none overflow-hidden"
+                placeholder="Type your message here..."
+                style="min-height: 50px; max-height: 200px;"></textarea>
+            
+            <button id="send-btn" class="absolute right-2 bottom-2 p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+        <p class="text-center text-xs text-gray-500 mt-2">AI can make mistakes. Check important info.</p>
+    </footer>
+
+    <script>
+        // --- Configuration & Elements ---
+        const els = {
+            chatContainer: document.getElementById('chat-container'),
+            userInput: document.getElementById('user-input'),
+            sendBtn: document.getElementById('send-btn'),
+            settingsBtn: document.getElementById('settings-btn'),
+            closeSettingsBtn: document.getElementById('close-settings'),
+            settingsModal: document.getElementById('settings-modal'),
+            apiKeyInput: document.getElementById('api-key-input'),
+            modelIdInput: document.getElementById('model-id-input'),
+            modelSelect: document.getElementById('model-select'),
+            loadingIndicator: document.getElementById('loading-indicator')
+        };
+
+        // State
+        let conversationHistory = [];
+        const systemPrompt = "You are a helpful coding assistant. When providing code, always wrap it in markdown code blocks with the language specified (e.g., ```python).";
+
+        // --- Initialization ---
+        
+        // Load settings from local storage
+        const savedKey = localStorage.getItem('hf_api_key');
+        const savedModel = localStorage.getItem('hf_model_id');
+        
+        if (savedKey) els.apiKeyInput.value = savedKey;
+        if (savedModel) {
+            els.modelIdInput.value = savedModel;
+            // Sync dropdown if the saved model is in our list
+            const option = Array.from(els.modelSelect.options).find(opt => opt.value === savedModel);
+            if (option) {
+                els.modelSelect.value = savedModel;
+            } else {
+                els.modelSelect.value = 'custom';
+            }
+        }
+
+        // Auto-resize textarea
+        els.userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if(this.value === '') this.style.height = '50px';
+        });
+
+        // Handle Enter key to send
+        els.userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        els.sendBtn.addEventListener('click', sendMessage);
+
+        // --- Settings Modal Logic ---
+        
+        // Handle dropdown change
+        els.modelSelect.addEventListener('change', (e) => {
+            if (e.target.value !== 'custom') {
+                els.modelIdInput.value = e.target.value;
+            } else {
+                els.modelIdInput.value = '';
+                els.modelIdInput.focus();
+            }
+        });
+
+        function toggleSettings() {
+            els.settingsModal.classList.toggle('hidden');
+        }
+
+        els.settingsBtn.addEventListener('click', toggleSettings);
+        
+        els.closeSettingsBtn.addEventListener('click', () => {
+            const key = els.apiKeyInput.value.trim();
+            const model = els.modelIdInput.value.trim();
+            
+            if (key) localStorage.setItem('hf_api_key', key);
+            if (model) localStorage.setItem('hf_model_id', model);
+            
+            toggleSettings();
+        });
+
+        // --- Core Chat Logic ---
+
+        async function sendMessage() {
+            const text = els.userInput.value.trim();
+            const apiKey = localStorage.getItem('hf_api_key');
+            // Default to Aeon37 Llama 3.3
+            const modelId = localStorage.getItem('hf_model_id') || 'aeon37/Llama-3.3-8B-Instruct-heretic';
+
+            if (!text) return;
+            if (!apiKey) {
+                alert("Please set your Hugging Face API Token in settings first!");
+                toggleSettings();
+                return;
+            }
+
+            // 1. Add User Message to UI
+            addMessageToUI('user', text);
+            els.userInput.value = '';
+            els.userInput.style.height = '50px';
+            els.loadingIndicator.classList.remove('hidden');
+            scrollToBottom();
+
+            // 2. Prepare Payload
+            // Construct prompt for Llama 3 format
+            // <|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nSystem Prompt<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nUser Prompt<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            
+            let promptText = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n${systemPrompt}<|eot_id|>`;
+            
+            // Add history
+            const recentHistory = conversationHistory.slice(-4);
+            recentHistory.forEach(msg => {
+                promptText += `<|start_header_id|>${msg.role}<|end_header_id|>\n\n${msg.content}<|eot_id|>`;
+            });
+            
+            // Add current message
+            promptText += `<|start_header_id|>user<|end_header_id|>\n\n${text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
+
+            conversationHistory.push({ role: 'user', content: text });
+
+            // 3. Call API
+            try {
+                const response = await fetch(`https://api-inference.huggingface.co/models/${modelId}`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        inputs: promptText,
+                        parameters: {
+                            max_new_tokens: 1024,
+                            temperature: 0.7,
+                            return_full_text: false
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `API Error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                let aiText = '';
+
+                if (Array.isArray(result) && result[0] && result[0].generated_text) {
+                    aiText = result[0].generated_text;
+                } else if (result.generated_text) {
+                    aiText = result.generated_text;
+                } else {
+                    aiText = "Received an unexpected response format.";
+                    console.log(result);
+                }
+
+                // 4. Add AI Message to UI
+                conversationHistory.push({ role: 'assistant', content: aiText });
+                addMessageToUI('ai', aiText);
+
+            } catch (error) {
+                let errorMsg = error.message;
+                if(errorMsg.includes("Model")) {
+                     errorMsg += " (This model might require Pro access or acceptance of license terms on Hugging Face).";
+                }
+                addMessageToUI('ai', `**Error:** ${errorMsg} \n\n*Check your API key, Model ID, or try switching to 'Mistral 7B' in settings.*`);
+            } finally {
+                els.loadingIndicator.classList.add('hidden');
+                scrollToBottom();
+            }
+        }
+
+        // --- UI Rendering ---
+
+        function addMessageToUI(role, content) {
+            const isUser = role === 'user';
+            
+            // Parse Markdown
+            const htmlContent = marked.parse(content);
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex gap-4 max-w-3xl mx-auto message-bubble';
+            
+            if (isUser) {
+                wrapper.classList.add('flex-row-reverse'); // User on right
+            }
+
+            const avatarColor = isUser ? 'bg-gray-600' : 'bg-indigo-600';
+            const icon = isUser ? 'fa-user' : 'fa-robot';
+            const bubbleColor = isUser ? 'bg-gray-700' : 'bg-gray-800';
+            const borderRadius = isUser ? 'rounded-tr-none' : 'rounded-tl-none';
+
+            wrapper.innerHTML = `
+                <div class="w-8 h-8 rounded-full ${avatarColor} flex-shrink-0 flex items-center justify-center mt-1">
+                    <i class="fa-solid ${icon} text-xs text-white"></i>
+                </div>
+                <div class="flex-1 max-w-[85%]">
+                    <div class="${bubbleColor} border border-gray-600 rounded-2xl ${borderRadius} p-4 shadow-sm overflow-hidden">
+                        <div class="prose prose-invert max-w-none text-sm md:text-base break-words">
+                            ${htmlContent}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            els.chatContainer.appendChild(wrapper);
+
+            // Post-process: Highlight code & Add Copy Buttons
+            if (!isUser) {
+                const codeBlocks = wrapper.querySelectorAll('pre code');
+                codeBlocks.forEach((block) => {
+                    hljs.highlightElement(block);
+                    enhanceCodeBlock(block);
+                });
+            }
+        }
+
+        function enhanceCodeBlock(codeElement) {
+            const pre = codeElement.parentElement; // The <pre> tag
+            const language = Array.from(codeElement.classList).find(c => c.startsWith('language-'))?.replace('language-', '') || 'text';
+            
+            // Create a wrapper div
+            const wrapper = document.createElement('div');
+            wrapper.className = 'code-block-wrapper';
+            
+            // Header for the code block
+            const header = document.createElement('div');
+            header.className = 'code-header';
+            header.innerHTML = `
+                <span class="font-mono text-xs font-bold text-gray-400">${language.toUpperCase()}</span>
+                <button class="flex items-center gap-1 hover:text-white transition" onclick="copyCode(this)">
+                    <i class="fa-regular fa-copy"></i> Copy
+                </button>
+            `;
+
+            // Insert wrapper before pre, then move pre inside wrapper
+            pre.parentNode.insertBefore(wrapper, pre);
+            wrapper.appendChild(header);
+            wrapper.appendChild(pre);
+        }
+
+        function scrollToBottom() {
+            setTimeout(() => {
+                els.chatContainer.scrollTo({
+                    top: els.chatContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 100);
+        }
+
+        // Global function for the Copy button
+        window.copyCode = function(button) {
+            const wrapper = button.parentElement.parentElement;
+            const code = wrapper.querySelector('code').innerText;
+            
+            navigator.clipboard.writeText(code).then(() => {
+                const originalHTML = button.innerHTML;
+                button.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Copied!`;
+                button.classList.add('text-green-400');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.classList.remove('text-green-400');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        };
+
+        // Custom renderer for marked.js to force links to new tab
+        const renderer = new marked.Renderer();
+        renderer.link = function(href, title, text) {
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" title="${title || ''}">${text}</a>`;
+        };
+        marked.use({ renderer });
+
+    </script>
+</body>
+</html>
